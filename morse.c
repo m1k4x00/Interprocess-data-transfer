@@ -1,9 +1,14 @@
 #define CHARSET_SIZE 51
 #define SYMBOL_SIZE 6
 
+//Characters in morseset are in the same order as in charset 
+
+//Contains the used character set
 char *charset = "ABCDEFGHIJLKMNOPQRSTUVWXYZ1234567890&'@():,=!.-+\"?/";
+
+//Contains the used morse table
+//SIGUSR1 = 10 = '.', SIGUSR2 = 12 = '-'
 int morseset [CHARSET_SIZE][SYMBOL_SIZE]= {
-    //SIGUSR1 = 10 = '.', SIGUSR2 = 12 = '-'
     {10,12,0,0,0,0},      //A
     {12,10,10,10,0,0},    //B
     {12,10,12,10,0,0},    //C
