@@ -77,7 +77,10 @@ int main(int argc, char *argv[]) {
         // Child process (B). Reads from inputfd
         FILE *logtx;
         logtx = fopen("./Logs/Log_tx.txt", "w");
-        
+        if (logtx == NULL) {
+            printf("Error! Openingn Log tx failed");
+            return -1;
+        }
         int buf[6] = {0};   //Buffer to store symbols as morse code  
         char ch[1];         //Variable to store character read from input
         int tx = SIGRTMIN;  //Signal used for transmission
@@ -85,6 +88,7 @@ int main(int argc, char *argv[]) {
         //Main loop to read from input 1 char at a time
 
         while(read(inputfd, ch, sizeof(ch))>0) { //Reading until end of input
+
             if (ch[0] == '\n') break;
             //Encoding the read character ch with morse code using the code function from lib.c and saving the result to buf
             fprintf(logtx, "Encoding character: %c\n", ch[0]);
@@ -139,16 +143,18 @@ int main(int argc, char *argv[]) {
            
     } else {
         // Parent process (A). Writes to outputfd
+
+        int ind = 0; //Keeps count of number of bits recieved to avoid buffer overflow
+        int buffer[6] = {0}; //Buffer to save received signals
+        char rxCh[1] = {0}; //Used to save the decoded character
+        char last = 0;  //Used to save last received signal to know when end of transmission is reached
+        
         FILE *logrx; //Log file file descriptor
         logrx = fopen("./Logs/Log_rx.txt", "w"); //Opening log file
         if (logrx == NULL) {
             printf("Error! Opeding Log rx failed");
             return -1;
         }
-        int ind = 0; //Keeps count of number of bits recieved to avoid buffer overflow
-        int buffer[6] = {0}; //Buffer to save received signals
-        char rxCh[1] = {0}; //Used to save the decoded character
-        char last = 0;  //Used to save last received signal to know when end of transmission is reached
         
         //Main loop to receive signals
         for ( ; ; ) {
@@ -156,8 +162,7 @@ int main(int argc, char *argv[]) {
             char rsignal; //Signal recieved
             int res = read(pipefd[0],&rsignal,1); //Reading signal from pipe
 
-
-             //When read is interrupted by a signal, it will return -1 and errno is EINTR.
+            //When read is interrupted by a signal, it will return -1 and errno is EINTR.
             if (res<0) {
                 fprintf(logrx, "Read failed\n");
                 perror("Read failed");
