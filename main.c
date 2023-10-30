@@ -10,7 +10,6 @@
 #include "lib.c"
 #include <assert.h>
 
-
 static int sigpipe = 0;
 
 //Signal handler
@@ -18,6 +17,7 @@ static void sig_usr(int signo, siginfo_t *info, void *contex) {
 	char ret = info->si_value.sival_int;
 	write(sigpipe,&ret,1);
 }
+
 //Sends signal {sig} to the process with id {pid} with the value {v.sival_int} and logs to a log file {log}
 int send_signal(pid_t pid, int sig, union sigval v, FILE *log){ 
     if (sigqueue(pid, sig, v)!=0) {
@@ -97,7 +97,6 @@ int main(int argc, char *argv[]) {
 
         //Main loop to read from input 1 char at a time
         while(read(inputfd, ch, sizeof(ch))>0) { //Reading until end of input
-
             if (ch[0] == '\n') break; // If read character is a newline end reached.
 
             //Encoding the read character ch with morse code using the code function from lib.c and saving the result to buf
@@ -126,7 +125,7 @@ int main(int argc, char *argv[]) {
                     if (send_signal(cpid, tx, val, log)) return -1;
                     }
             }
-            sleep(0.1); //Flow control    
+            sleep(0.1); //Flow control - sleeping for 100ms after sending a symbol  
         }
         //To denote end of transmission we send two times signal 20.
         val.sival_int = 20;
@@ -188,7 +187,6 @@ int main(int argc, char *argv[]) {
                     else if (rsignal == 12) { 
                         if (ind<6) { //Preventing buffer overflow
                             buffer[ind] = rsignal;
-                            //fprintf(logrx, "Recieved 12\n");
                             ind++;
                         } else {
                             fprintf(logrx, "Error! Buffer full");
@@ -199,8 +197,6 @@ int main(int argc, char *argv[]) {
                         }
                     //If received signal is 20 end of signal is reached
                     else if (rsignal == 20) {
-                      
-                        //fprintf(logrx, "Recieved 20. Decoding...\n");
                         //Decoding received character
                         if(decode(buffer, &(rxCh[0]))<0) { 
                             fprintf(logrx, "Error! Decoding symbol failed\n");    
