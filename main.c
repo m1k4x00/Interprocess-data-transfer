@@ -17,7 +17,14 @@ static int sigpipe = 0;
 static void sig_usr(int signo, siginfo_t *info, void *contex) {
 	char ret = info->si_value.sival_int;
 	write(sigpipe,&ret,1);
-
+}
+//Sends signal {sig} to the process with id {pid} with the value {v.sival_int} and logs to a log file {log}
+int send_signal(pid_t pid, int sig, union sigval v, FILE *log){ 
+    if (sigqueue(pid, sig, v)!=0) {
+        fprintf(log, "Error when sending value: \"%d\"\n", v.sival_int);
+        return -1;            
+        }
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -42,7 +49,7 @@ int main(int argc, char *argv[]) {
     // Initializing signal handler and pipe
     fprintf(log, "Initializing signal handler\n"); //Logging
     struct sigaction sig;
-    union sigval val;
+    union sigval val = {0};
     int pipefd[2];  //Pipe file descriptor
 
     fprintf(log, "Creating pipe\n"); //Logging pipe creation
@@ -50,7 +57,7 @@ int main(int argc, char *argv[]) {
     if(pipe(pipefd)!=0){
         fprintf(log, "Creating pipe failed\n");
         printf("Creating pipe failed\n");
-        return -1;
+        return -1; 
     }
 
     sigpipe = pipefd[1];
@@ -68,13 +75,15 @@ int main(int argc, char *argv[]) {
         return -1;
     }
    
-
     //Creating child process
     fprintf(log, "Creating child process\n");
     pid_t pid = fork();
 
+    /*********************
+    * Child process (B)  *
+    **********************/
+   //Reads from inputfd
     if (pid == 0) { 
-        // Child process (B). Reads from inputfd
         FILE *logtx;
         logtx = fopen("./Logs/Log_tx.txt", "w");
         if (logtx == NULL) {
@@ -84,12 +93,13 @@ int main(int argc, char *argv[]) {
         int buf[6] = {0};   //Buffer to store symbols as morse code  
         char ch[1];         //Variable to store character read from input
         int tx = SIGRTMIN;  //Signal used for transmission
-    
-        //Main loop to read from input 1 char at a time
+        int cpid = getppid(); //Pid of the parent
 
+        //Main loop to read from input 1 char at a time
         while(read(inputfd, ch, sizeof(ch))>0) { //Reading until end of input
 
-            if (ch[0] == '\n') break;
+            if (ch[0] == '\n') break; // If read character is a newline end reached.
+
             //Encoding the read character ch with morse code using the code function from lib.c and saving the result to buf
             fprintf(logtx, "Encoding character: %c\n", ch[0]);
             if (code(ch[0], buf)!=0) { 
@@ -99,51 +109,36 @@ int main(int argc, char *argv[]) {
 
             //Sending the symbol
             for (int i = 0; i<6;i++){
-                
                 if (buf[i]==0) { //If 0 then no more data to be sent
                     //e.g, {10,12,0,0,0,0} need to only send 10 and 12 so sending 20 to denote end of symbol
                     val.sival_int = 20;
-                    if (sigqueue(getppid(), tx, val)!=0) {
-                        fprintf(logtx, "Error when sending value: \"%d\"\n", val.sival_int);
-                        return -1;
-                    }
-                    fprintf(logtx, "Sent 20\n");
+                    if (send_signal(cpid, tx, val, log)) return -1;
                     break;  //No need to continue for loop when 0 is reached
                 } 
                 else {  //Sending either 10 or 12
                     val.sival_int=buf[i];
-                    if (sigqueue(getppid(), tx, val)!=0){
-                        fprintf(logtx, "Error when sending value: \"%d\"\n", val.sival_int);
-                        return -1;
-                    }
-                    fprintf(logtx, "Sent %d\n", buf[i]);
+                    if (send_signal(cpid, tx, val, log)) return -1;
                     } 
                     //If i is 5 then we know that we are sending a symbol that uses all 6 bytes of the buffer so no 0 values,
                     //therefore, sending 20 to denote end of symbol
-                    val.sival_int = 20;
-                    if (i==5) {
-                        if (sigqueue(getppid(), tx, val)!=0){
-                            fprintf(logtx, "Error when sending value: \"%d\"\n", val.sival_int);
-                            return -1;
-                        } 
-                        fprintf(logtx, "Sent 20\n");
-                        }
+                val.sival_int = 20;
+                if (i==5) {
+                    if (send_signal(cpid, tx, val, log)) return -1;
+                    }
             }
-                
+            sleep(0.1); //Flow control    
         }
         //To denote end of transmission we send two times signal 20.
         val.sival_int = 20;
-        if (sigqueue(getppid(), tx, val)!=0){
-            fprintf(logtx, "Error when sending value: \"%d\"\n", val.sival_int);
-        }
-        fprintf(logtx, "Sent 20\n");
+        if (send_signal(cpid, tx, val, log)) return -1;
 
         fclose(logtx); //Closing log file
     
-           
+    /*********************
+    * Parent process (A)  *
+    **********************/
+    //Writes to outputfd
     } else {
-        // Parent process (A). Writes to outputfd
-
         int ind = 0; //Keeps count of number of bits recieved to avoid buffer overflow
         int buffer[6] = {0}; //Buffer to save received signals
         char rxCh[1] = {0}; //Used to save the decoded character
@@ -158,11 +153,10 @@ int main(int argc, char *argv[]) {
         
         //Main loop to receive signals
         for ( ; ; ) {
-
             char rsignal; //Signal recieved
             int res = read(pipefd[0],&rsignal,1); //Reading signal from pipe
 
-            //When read is interrupted by a signal, it will return -1 and errno is EINTR.
+            //When read is interrupted by a signal, it will return -1 
             if (res<0) {
                 fprintf(logrx, "Read failed\n");
                 perror("Read failed");
@@ -181,7 +175,7 @@ int main(int argc, char *argv[]) {
                         
                         if (ind<6) { //Preventing buffer overflow
                             buffer[ind] = rsignal;
-                            fprintf(logrx, "Recieved 10\n");
+                            //fprintf(logrx, "Recieved 10\n");
                             ind++;
                         } else {
                             fprintf(logrx, "Error! Buffer full");
@@ -194,7 +188,7 @@ int main(int argc, char *argv[]) {
                     else if (rsignal == 12) { 
                         if (ind<6) { //Preventing buffer overflow
                             buffer[ind] = rsignal;
-                            fprintf(logrx, "Recieved 12\n");
+                            //fprintf(logrx, "Recieved 12\n");
                             ind++;
                         } else {
                             fprintf(logrx, "Error! Buffer full");
@@ -206,7 +200,7 @@ int main(int argc, char *argv[]) {
                     //If received signal is 20 end of signal is reached
                     else if (rsignal == 20) {
                       
-                        fprintf(logrx, "Recieved 20. Decoding...\n");
+                        //fprintf(logrx, "Recieved 20. Decoding...\n");
                         //Decoding received character
                         if(decode(buffer, &(rxCh[0]))<0) { 
                             fprintf(logrx, "Error! Decoding symbol failed\n");    
@@ -221,16 +215,11 @@ int main(int argc, char *argv[]) {
                             fprintf(logrx, "Error! Writing \"%c\" to output failed\n", rxCh[0]);
                             return -1;
                             }
-                    
                     }
-                    
                 }
-                
             }
         fclose(logrx);  //Closing log file
     }
-
-    
     close(inputfd); //Closing input
     close(outputfd);    //Closing output
     

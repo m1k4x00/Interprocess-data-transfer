@@ -108,7 +108,7 @@ int decode(int *morseArr, char *ch) {
             }
         }
         //If this part is reached with f set to 1 character was found and the result is saved to ch
-        if (f == 1){
+        if (f == 1) {
             *ch = charset[i];   
             return 1;
         }

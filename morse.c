@@ -7,7 +7,7 @@
 char *charset = "ABCDEFGHIJLKMNOPQRSTUVWXYZ1234567890&'@():,=!.-+\"?/";
 
 //Contains the used morse table
-//SIGUSR1 = 10 = '.', SIGUSR2 = 12 = '-'
+//SIGUSR1 = 10 = '.', SIGUSR2 = 12 = '-'  (Could be anything, these were chosen only because of the previous versions)
 int morseset [CHARSET_SIZE][SYMBOL_SIZE]= {
     {10,12,0,0,0,0},      //A
     {12,10,10,10,0,0},    //B
