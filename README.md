@@ -4,6 +4,8 @@
 ### 1.1. Overview
 This project demonstrates the use of signals and file I/O in a POSIX environment. The idea is to send morse coded text data using POSIX signals between two process. This is not the inteded purpose of signals, but it demosnstrates the use of signals well. The program can input and output either from the standard input and output or from text files. The structure of the program is visualized in the following flowchart:
 
+![image](https://github.com/m1k4x00/Interprocess-data-transfer/assets/142576207/d2797f84-fc4c-4eec-8c1d-7e2d4d93a81b)
+
 Before the development of the program few implementation methods were decided. When morse encoded data is sent between two processes, it is needed to distinguish two separate symbols from each other. It is possible to, for example, either keep short pauses between the symbols or send a different signal between them. For better efficiency and easier implementation it is better to use an additional signal. We also need to decide how we implement the two programs which communicate between each other. It was decided that only fork() is used in the implementation. Lastly, the charset used is the same as in the testbench.
 
 ### 1.2. Usage
